@@ -1,3 +1,2 @@
-discord.py==2.6.1
-aiohttp
+py-cord
 python-dotenv
