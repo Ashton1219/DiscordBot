@@ -3,7 +3,6 @@ from discord.ext import commands
 import os
 import asyncio
 import socket
-import subprocess
 
 # Load token from .env
 from dotenv import load_dotenv
@@ -15,20 +14,27 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
 
-# ----- Ping command -----
+# ----- Ping command using TCP -----
 @bot.command()
 async def ping(ctx, host: str):
-    """Ping a host"""
+    """Ping a host using a TCP connection (no system ping needed)"""
     await ctx.send(f"Pinging {host}...")
-    try:
-        param = '-n' if os.name == 'nt' else '-c'
-        result = subprocess.run(['ping', param, '1', host], capture_output=True, text=True)
-        if result.returncode == 0:
-            await ctx.send(f"{host} is reachable!")
-        else:
-            await ctx.send(f"{host} is not reachable.")
-    except Exception as e:
-        await ctx.send(f"Error pinging {host}: {e}")
+
+    ports_to_try = [80, 443]  # common HTTP/HTTPS ports
+    reachable = False
+
+    for port in ports_to_try:
+        try:
+            conn = socket.create_connection((host, port), timeout=2)
+            conn.close()
+            reachable = True
+            await ctx.send(f"{host} is reachable on port {port}!")
+            break
+        except Exception:
+            continue
+
+    if not reachable:
+        await ctx.send(f"{host} is not reachable on common ports.")
 
 # ----- Home ports scanner -----
 COMMON_PORTS = [
@@ -52,7 +58,7 @@ async def scan_port(host, port, semaphore):
 async def homeports(ctx, host: str):
     """Scan common home ports"""
     await ctx.send(f"Scanning common ports on {host}...")
-    semaphore = asyncio.Semaphore(8)
+    semaphore = asyncio.Semaphore(8)  # limit concurrency
     tasks = [scan_port(host, port, semaphore) for port in COMMON_PORTS]
     results = await asyncio.gather(*tasks)
 
@@ -61,12 +67,14 @@ async def homeports(ctx, host: str):
         status = "OPEN" if is_open else "closed"
         msg += f"{port}: {status}\n"
 
+    # Send message in chunks if too long
     for chunk in [msg[i:i+2000] for i in range(0, len(msg), 2000)]:
         await ctx.send(f"```\n{chunk}\n```")
 
-# ----- Run bot -----
+# ----- Bot ready event -----
 @bot.event
 async def on_ready():
     print(f"Bot ready: {bot.user} (id: {bot.user.id})")
 
+# ----- Run bot -----
 bot.run(DISCORD_TOKEN)
