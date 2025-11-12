@@ -21,7 +21,6 @@ async def ping(ctx, host: str):
     """Ping a host"""
     await ctx.send(f"Pinging {host}...")
     try:
-        # Cross-platform ping command
         param = '-n' if os.name == 'nt' else '-c'
         result = subprocess.run(['ping', param, '1', host], capture_output=True, text=True)
         if result.returncode == 0:
@@ -53,7 +52,7 @@ async def scan_port(host, port, semaphore):
 async def homeports(ctx, host: str):
     """Scan common home ports"""
     await ctx.send(f"Scanning common ports on {host}...")
-    semaphore = asyncio.Semaphore(8)  # limit concurrency
+    semaphore = asyncio.Semaphore(8)
     tasks = [scan_port(host, port, semaphore) for port in COMMON_PORTS]
     results = await asyncio.gather(*tasks)
 
@@ -62,7 +61,6 @@ async def homeports(ctx, host: str):
         status = "OPEN" if is_open else "closed"
         msg += f"{port}: {status}\n"
 
-    # Send message in chunks if too long
     for chunk in [msg[i:i+2000] for i in range(0, len(msg), 2000)]:
         await ctx.send(f"```\n{chunk}\n```")
 
